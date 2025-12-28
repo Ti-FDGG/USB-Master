@@ -50,21 +50,56 @@ class USBService:
     async def scan_devices(self) -> List[USBDeviceInfo]:
         """扫描 USB 设备"""
         devices = []
+        device_ids_seen = set()  # 用于去重
         
         try:
+            # 方法1: 使用 pyusb（如果可用）
             if HAS_PYUSB:
                 try:
                     pyusb_devices = await self._scan_pyusb()
-                    devices.extend(pyusb_devices)
+                    for dev in pyusb_devices:
+                        if dev.device_id not in device_ids_seen:
+                            devices.append(dev)
+                            device_ids_seen.add(dev.device_id)
                 except Exception as e:
                     print(f"Warning: pyusb scan failed: {e}")
             
+            # 方法2: 使用 pywinusb（Windows HID 设备）
             if HAS_WINUSB and platform.system() == "Windows":
                 try:
                     winusb_devices = await self._scan_winusb()
-                    devices.extend(winusb_devices)
+                    for dev in winusb_devices:
+                        if dev.device_id not in device_ids_seen:
+                            devices.append(dev)
+                            device_ids_seen.add(dev.device_id)
                 except Exception as e:
                     print(f"Warning: pywinusb scan failed: {e}")
+            
+            # 方法3: 使用 WMI（Windows 备选方案）
+            if platform.system() == "Windows" and len(devices) == 0:
+                try:
+                    from services.usb_service_windows import scan_usb_devices_wmi
+                    wmi_devices = await scan_usb_devices_wmi()
+                    for dev in wmi_devices:
+                        if dev.device_id not in device_ids_seen:
+                            devices.append(dev)
+                            device_ids_seen.add(dev.device_id)
+                except Exception as e:
+                    print(f"Warning: WMI scan failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+            
+            # 方法4: 使用注册表（Windows 最后备选）
+            if platform.system() == "Windows" and len(devices) == 0:
+                try:
+                    from services.usb_service_windows import scan_usb_devices_registry
+                    reg_devices = await scan_usb_devices_registry()
+                    for dev in reg_devices:
+                        if dev.device_id not in device_ids_seen:
+                            devices.append(dev)
+                            device_ids_seen.add(dev.device_id)
+                except Exception as e:
+                    print(f"Warning: Registry scan failed: {e}")
         except Exception as e:
             print(f"Error in scan_devices: {e}")
             import traceback
@@ -74,6 +109,7 @@ class USBService:
         async with self._cache_lock:
             self.devices_cache = devices
         
+        print(f"USB scan completed: found {len(devices)} device(s)")
         return devices
     
     async def _scan_pyusb(self) -> List[USBDeviceInfo]:
