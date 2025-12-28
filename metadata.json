@@ -1,0 +1,5 @@
+{
+  "name": "USB Master Web",
+  "description": "A comprehensive USB bus analysis and file management tool using WebUSB and File System Access APIs.",
+  "requestFramePermissions": []
+}
