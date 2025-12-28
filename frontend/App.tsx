@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Activity, Terminal, Clock, Settings, LayoutDashboard } from 'lucide-react';
+import { User, Activity, Terminal, Clock, Settings, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
 import UsbMonitor from './components/UsbMonitor';
 import FileManager from './components/FileManager';
 import { UsbDeviceLog } from './types';
@@ -9,6 +9,7 @@ function App() {
   const [logs, setLogs] = useState<UsbDeviceLog[]>([]);
   const [currentUser, setCurrentUser] = useState<string>('Unknown');
   const [systemUptime, setSystemUptime] = useState(0);
+  const [isLogExpanded, setIsLogExpanded] = useState(false);
 
   useEffect(() => {
     // 获取系统用户信息
@@ -76,7 +77,7 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 flex flex-col font-sans selection:bg-blue-500/30">
+    <div className="h-screen bg-slate-950 text-slate-200 flex flex-col font-sans selection:bg-blue-500/30 overflow-hidden">
       {/* Header */}
       <header className="bg-slate-900 border-b border-slate-800 h-16 flex items-center px-6 justify-between sticky top-0 z-50">
         <div className="flex items-center gap-3">
@@ -84,7 +85,7 @@ function App() {
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="font-bold text-lg leading-tight tracking-tight text-white">USB Master Web</h1>
+            <h1 className="font-bold text-lg leading-tight tracking-tight text-white">USB Master</h1>
             <p className="text-[10px] text-slate-400 uppercase tracking-widest font-semibold">Bus Analysis & Device Control</p>
           </div>
         </div>
@@ -111,51 +112,66 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 max-w-[1600px] mx-auto w-full">
+      <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 grid-rows-[1fr_auto] gap-6 max-w-[1600px] mx-auto w-full overflow-hidden min-h-0">
         {/* Left Column: USB Bus Monitor */}
-        <div className="lg:col-span-4 h-[600px] lg:h-auto">
+        <div className="lg:col-span-4 h-[600px] lg:h-full flex flex-col min-h-0">
           <UsbMonitor addLog={addLog} />
         </div>
 
         {/* Right Column: File Manager */}
-        <div className="lg:col-span-8 h-[600px] lg:h-auto">
+        <div className="lg:col-span-8 h-[600px] lg:h-full flex flex-col min-h-0">
           <FileManager addLog={addLog} />
         </div>
 
         {/* Bottom Row: System Logs */}
-        <div className="lg:col-span-12 h-64 bg-slate-900 rounded-xl border border-slate-800 flex flex-col overflow-hidden shadow-inner">
-          <div className="px-4 py-2 bg-slate-950 border-b border-slate-800 flex items-center gap-2">
-            <Terminal className="w-4 h-4 text-slate-500" />
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">System Event Log</h3>
+        <div className={`lg:col-span-12 bg-slate-900 rounded-xl border border-slate-800 flex flex-col overflow-hidden shadow-inner transition-all duration-300 ${isLogExpanded ? 'h-64' : ''}`}>
+          <div className={`px-4 py-2 bg-slate-950 flex items-center justify-between ${isLogExpanded ? 'border-b border-slate-800' : ''}`}>
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-slate-500" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">System Event Log</h3>
+            </div>
+            <button
+              onClick={() => setIsLogExpanded(!isLogExpanded)}
+              className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-slate-200"
+              aria-label={isLogExpanded ? '收起日志' : '展开日志'}
+            >
+              {isLogExpanded ? (
+                <ChevronDown className="w-4 h-4" />
+              ) : (
+                <ChevronUp className="w-4 h-4" />
+              )}
+            </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-1">
-            {logs.length === 0 && (
-              <span className="text-slate-600 italic">No events recorded...</span>
-            )}
-            {logs.map((log) => (
-              <div key={log.id} className="flex gap-3 animate-fadeIn">
-                <span className="text-slate-600 shrink-0">
-                  [{log.timestamp.toLocaleTimeString()}]
-                </span>
-                <span className={`
-                  ${log.type === 'error' ? 'text-red-400' : ''}
-                  ${log.type === 'connect' ? 'text-emerald-400' : ''}
-                  ${log.type === 'disconnect' ? 'text-orange-400' : ''}
-                  ${log.type === 'transfer' ? 'text-blue-400' : ''}
-                  ${log.type === 'info' ? 'text-slate-300' : ''}
-                `}>
-                  {log.type.toUpperCase()}:
-                </span>
-                <span className="text-slate-400">{log.message}</span>
-              </div>
-            ))}
-          </div>
+          {isLogExpanded && (
+            <div className="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-1 min-h-[200px]">
+              {logs.length === 0 && (
+                <span className="text-slate-600 italic">No events recorded...</span>
+              )}
+              {logs.map((log) => (
+                <div key={log.id} className="flex gap-3 animate-fadeIn">
+                  <span className="text-slate-600 shrink-0">
+                    [{log.timestamp.toLocaleTimeString()}]
+                  </span>
+                  <span className={`
+                    ${log.type === 'error' ? 'text-red-400' : ''}
+                    ${log.type === 'connect' ? 'text-emerald-400' : ''}
+                    ${log.type === 'disconnect' ? 'text-orange-400' : ''}
+                    ${log.type === 'transfer' ? 'text-blue-400' : ''}
+                    ${log.type === 'info' ? 'text-slate-300' : ''}
+                  `}>
+                    {log.type.toUpperCase()}:
+                  </span>
+                  <span className="text-slate-400">{log.message}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </main>
 
       {/* Footer */}
       <footer className="border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-600">
-        <p>USB Master Web &copy; 2024. Python Backend API with React Frontend.</p>
+        <p>USB Master &copy; 2024. Python Backend API with React Frontend.</p>
       </footer>
     </div>
   );

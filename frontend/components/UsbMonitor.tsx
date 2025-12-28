@@ -112,7 +112,7 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
   };
 
   return (
-    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-full shadow-lg">
+    <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden flex flex-col h-full min-h-0 shadow-lg">
       <div className="p-4 bg-slate-900 border-b border-slate-700 flex justify-between items-center">
         <h2 className="text-lg font-semibold flex items-center text-blue-400">
           <Usb className="w-5 h-5 mr-2" />
