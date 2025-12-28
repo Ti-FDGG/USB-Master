@@ -36,8 +36,19 @@ async def startup_event():
     # 启动 USB 设备监控服务
     try:
         start_usb_monitor()
+        print("USB monitor service started successfully")
     except Exception as e:
         print(f"Warning: Failed to start USB monitor: {e}")
+        import traceback
+        traceback.print_exc()
+    
+    # 启动时自动扫描 USB 设备（使用API模块中的共享实例）
+    try:
+        # 使用api.usb模块中已创建的usb_service实例，确保数据共享
+        devices = await usb.usb_service.scan_devices()
+        print(f"Initial USB scan completed: found {len(devices)} device(s)")
+    except Exception as e:
+        print(f"Warning: Failed to perform initial USB scan: {e}")
         import traceback
         traceback.print_exc()
 

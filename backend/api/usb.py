@@ -21,14 +21,22 @@ class ConnectionManager:
         self.active_connections.append(websocket)
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
 
     async def broadcast(self, message: dict):
+        disconnected = []
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
-            except:
-                pass
+            except Exception as e:
+                # 连接已断开，标记为待移除
+                disconnected.append(connection)
+                print(f"WebSocket broadcast error: {e}")
+        
+        # 移除已断开的连接
+        for conn in disconnected:
+            self.disconnect(conn)
 
 manager = ConnectionManager()
 
@@ -85,18 +93,29 @@ async def websocket_usb_monitor(websocket: WebSocket):
         devices = await usb_service.get_all_devices()
         await websocket.send_json({
             "type": "initial",
-            "devices": devices
+            "devices": [d.model_dump() if hasattr(d, 'model_dump') else d for d in devices]
         })
+        print(f"WebSocket client connected, sent {len(devices)} initial devices")
 
         # 保持连接，等待事件
         while True:
-            data = await websocket.receive_text()
-            # 可以处理客户端发送的消息
-            if data == "ping":
-                await websocket.send_json({"type": "pong"})
+            try:
+                data = await websocket.receive_text()
+                # 可以处理客户端发送的消息
+                if data == "ping":
+                    await websocket.send_json({"type": "pong"})
+            except WebSocketDisconnect:
+                raise
+            except Exception as e:
+                print(f"Error receiving WebSocket message: {e}")
+                break
     except WebSocketDisconnect:
+        print("WebSocket client disconnected")
         manager.disconnect(websocket)
     except Exception as e:
+        print(f"WebSocket error: {e}")
+        import traceback
+        traceback.print_exc()
         manager.disconnect(websocket)
 
 

@@ -25,6 +25,7 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
   const [isSupported, setIsSupported] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const wsClientRef = useRef<WebSocketClient | null>(null);
+  const isInitializedRef = useRef(false);
 
   const refreshDevices = async () => {
     setIsLoading(true);
@@ -42,12 +43,20 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
   };
 
   useEffect(() => {
+    // 防止重复初始化（React StrictMode 在开发模式下会执行两次）
+    if (isInitializedRef.current) {
+      return;
+    }
+    isInitializedRef.current = true;
+
     // 初始加载设备列表
     refreshDevices();
 
     // 连接 WebSocket 监控设备变化
     const wsClient = new WebSocketClient('/api/usb/ws/monitor');
     wsClientRef.current = wsClient;
+
+    let previousDevices: USBDeviceInfo[] = [];
 
     wsClient.connect()
       .then(() => {
@@ -56,46 +65,60 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
         // 监听初始设备列表
         wsClient.on('initial', (data: any) => {
           if (data.devices) {
-            setDevices(data.devices);
+            const deviceList = data.devices as USBDeviceInfo[];
+            setDevices(deviceList);
+            previousDevices = deviceList;
+            if (deviceList.length > 0) {
+              addLog('info', `Received ${deviceList.length} device(s) from WebSocket`);
+            }
           }
         });
 
         // 监听设备连接
         wsClient.on('device_connected', (data: any) => {
           if (data.devices) {
-            setDevices(data.devices);
-            const newDevices = data.devices.filter((d: USBDeviceInfo) => 
-              !devices.some(existing => existing.device_id === d.device_id)
+            const deviceList = data.devices as USBDeviceInfo[];
+            const newDevices = deviceList.filter((d: USBDeviceInfo) => 
+              !previousDevices.some(existing => existing.device_id === d.device_id)
             );
             if (newDevices.length > 0) {
               newDevices.forEach((device: USBDeviceInfo) => {
                 addLog('connect', `Device connected: ${device.product || device.manufacturer || 'Unknown Device'}`);
               });
             }
+            setDevices(deviceList);
+            previousDevices = deviceList;
           }
         });
 
         // 监听设备断开
         wsClient.on('device_disconnected', (data: any) => {
           if (data.devices) {
-            const oldDevices = devices.filter(d => 
-              !data.devices.some((newD: USBDeviceInfo) => newD.device_id === d.device_id)
+            const deviceList = data.devices as USBDeviceInfo[];
+            const oldDevices = previousDevices.filter(d => 
+              !deviceList.some((newD: USBDeviceInfo) => newD.device_id === d.device_id)
             );
-            oldDevices.forEach(device => {
-              addLog('disconnect', `Device disconnected: ${device.product || device.manufacturer || 'Unknown Device'}`);
-            });
-            setDevices(data.devices);
+            if (oldDevices.length > 0) {
+              oldDevices.forEach(device => {
+                addLog('disconnect', `Device disconnected: ${device.product || device.manufacturer || 'Unknown Device'}`);
+              });
+            }
+            setDevices(deviceList);
+            previousDevices = deviceList;
           }
         });
       })
       .catch((error) => {
         console.error('Failed to connect WebSocket:', error);
-        addLog('error', 'Failed to connect to USB monitoring service. Device changes may not be detected in real-time.');
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        addLog('error', `Failed to connect to USB monitoring service: ${errorMessage}. Device changes may not be detected in real-time.`);
       });
 
     return () => {
+      isInitializedRef.current = false;
       if (wsClientRef.current) {
         wsClientRef.current.disconnect();
+        wsClientRef.current = null;
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

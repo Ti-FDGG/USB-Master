@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { User, Activity, Terminal, Clock, Settings, LayoutDashboard, ChevronDown, ChevronUp } from 'lucide-react';
 import UsbMonitor from './components/UsbMonitor';
 import FileManager from './components/FileManager';
@@ -10,8 +10,25 @@ function App() {
   const [currentUser, setCurrentUser] = useState<string>('Unknown');
   const [systemUptime, setSystemUptime] = useState(0);
   const [isLogExpanded, setIsLogExpanded] = useState(false);
+  const isInitializedRef = useRef(false);
+
+  const addLog = useCallback((type: UsbDeviceLog['type'], message: string) => {
+    const newLog: UsbDeviceLog = {
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: new Date(),
+      type,
+      message,
+    };
+    setLogs((prev) => [newLog, ...prev]);
+  }, []);
 
   useEffect(() => {
+    // 防止重复初始化（React StrictMode 在开发模式下会执行两次）
+    if (isInitializedRef.current) {
+      return;
+    }
+    isInitializedRef.current = true;
+
     // 获取系统用户信息
     const fetchUserInfo = async () => {
       try {
@@ -54,20 +71,12 @@ function App() {
     addLog('info', 'System initialized. Ready to scan USB buses.');
 
     return () => {
+      isInitializedRef.current = false;
       clearInterval(interval);
       clearInterval(syncInterval);
     };
-  }, []);
+  }, [addLog]);
 
-  const addLog = (type: UsbDeviceLog['type'], message: string) => {
-    const newLog: UsbDeviceLog = {
-      id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date(),
-      type,
-      message,
-    };
-    setLogs((prev) => [newLog, ...prev]);
-  };
 
   const formatUptime = (seconds: number) => {
     const h = Math.floor(seconds / 3600);
