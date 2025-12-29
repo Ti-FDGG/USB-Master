@@ -1,9 +1,8 @@
 """
-USB 设备监控服务
+USB 设备监控服务（仅支持 Windows）
 """
 import os
 import asyncio
-import platform
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from typing import Optional
@@ -16,7 +15,7 @@ observer: Optional[Observer] = None
 
 
 class USBEventHandler(FileSystemEventHandler):
-    """USB 设备文件系统事件处理器"""
+    """USB 设备文件系统事件处理器（仅监控 Windows 驱动器根目录）"""
     
     def __init__(self):
         self.last_scan_time = 0
@@ -49,7 +48,7 @@ class USBEventHandler(FileSystemEventHandler):
         if not event.is_directory:
             return
         
-        # 检查是否为 USB 设备挂载点
+        # 检查是否为 USB 设备挂载点（Windows 驱动器根目录）
         if self._is_usb_mount_point(event.src_path):
             asyncio.create_task(self._notify_device_change("device_connected"))
     
@@ -62,22 +61,12 @@ class USBEventHandler(FileSystemEventHandler):
             asyncio.create_task(self._notify_device_change("device_disconnected"))
     
     def _is_usb_mount_point(self, path: str) -> bool:
-        """判断是否为 USB 设备挂载点"""
-        # Windows: 检查是否为驱动器根目录
-        if platform.system() == "Windows":
-            return len(path) == 3 and path[1] == ":" and path[2] == "\\"
-        
-        # Linux: 检查 /media, /mnt, /run/media 下的目录
-        usb_paths = ["/media", "/mnt", "/run/media"]
-        for usb_path in usb_paths:
-            if path.startswith(usb_path):
-                return True
-        
-        return False
+        """判断是否为 USB 设备挂载点（Windows 驱动器根目录）"""
+        return len(path) == 3 and path[1] == ":" and path[2] == "\\"
 
 
 def start_usb_monitor():
-    """启动 USB 设备监控"""
+    """启动 USB 设备监控（仅监控 Windows 驱动器）"""
     global observer
     
     if observer is not None:
@@ -86,24 +75,14 @@ def start_usb_monitor():
     event_handler = USBEventHandler()
     observer = Observer()
     
-    if platform.system() == "Windows":
-        # Windows: 监控所有驱动器根目录
-        for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-            drive = f"{letter}:\\"
-            if os.path.exists(drive):
-                try:
-                    observer.schedule(event_handler, drive, recursive=False)
-                except:
-                    pass
-    else:
-        # Linux: 监控 USB 挂载点目录
-        watch_paths = ["/media", "/mnt", "/run/media"]
-        for path in watch_paths:
-            if os.path.exists(path):
-                try:
-                    observer.schedule(event_handler, path, recursive=True)
-                except:
-                    pass
+    # 监控所有存在的驱动器根目录（Windows）
+    for letter in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        drive = f"{letter}:\\"
+        if os.path.exists(drive):
+            try:
+                observer.schedule(event_handler, drive, recursive=False)
+            except:
+                pass
     
     observer.start()
     print("USB monitor started")
@@ -118,4 +97,4 @@ def stop_usb_monitor():
         observer.join()
         observer = None
         print("USB monitor stopped")
-
+    

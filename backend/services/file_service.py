@@ -31,11 +31,8 @@ class FileService:
     async def get_removable_drives(self) -> List[DriveInfo]:
         """获取可移动驱动器列表"""
         drives = []
-        
-        if platform.system() == "Windows":
-            drives = await self._get_windows_drives()
-        else:
-            drives = await self._get_linux_drives()
+        # 项目仅支持 Windows，这里只获取 Windows 驱动器信息
+        drives = await self._get_windows_drives()
         
         # 更新允许的驱动器列表
         self.allowed_drives = {d.path for d in drives}
@@ -111,35 +108,6 @@ class FileService:
                         continue
         
         # 即使没有找到驱动器，也返回空列表而不是错误
-        return drives
-    
-    async def _get_linux_drives(self) -> List[DriveInfo]:
-        """获取 Linux 可移动驱动器（挂载点）"""
-        drives = []
-        
-        # 检查 /media 和 /mnt 目录
-        media_paths = ["/media", "/mnt", "/run/media"]
-        
-        for base_path in media_paths:
-            if os.path.exists(base_path):
-                try:
-                    for item in os.listdir(base_path):
-                        full_path = os.path.join(base_path, item)
-                        if os.path.isdir(full_path) and os.path.ismount(full_path):
-                            try:
-                                total, free = shutil.disk_usage(full_path)[:2]
-                                drives.append(DriveInfo(
-                                    path=full_path,
-                                    label=item,
-                                    total_space=total,
-                                    free_space=free,
-                                    type="removable"
-                                ))
-                            except:
-                                pass
-                except:
-                    pass
-        
         return drives
     
     def is_safe_path(self, path: str) -> bool:

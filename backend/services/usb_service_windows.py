@@ -1,8 +1,7 @@
 """
 Windows USB 设备检测（使用 WMI）
-作为 pyusb 和 pywinusb 的备选方案
+作为 pyusb 和 pywinusb 的备选方案（项目仅支持 Windows）
 """
-import platform
 import subprocess
 import json
 import re
@@ -16,9 +15,6 @@ from models.schemas import USBDeviceInfo
 async def scan_usb_devices_wmi() -> List[USBDeviceInfo]:
     """使用 WMI (Windows Management Instrumentation) 扫描 USB 设备"""
     devices = []
-    
-    if platform.system() != "Windows":
-        return devices
     
     try:
         # 使用 PowerShell 查询 WMI，输出到临时文件避免编码问题

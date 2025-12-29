@@ -1,38 +1,26 @@
 """
-USB 设备服务
+USB 设备服务（仅支持 Windows）
 """
-import platform
 from typing import List, Optional
 import asyncio
 
 from models.schemas import USBDeviceInfo
 
-# 根据平台导入不同的 USB 库
-if platform.system() == "Windows":
-    try:
-        import pywinusb.hid as hid
-        HAS_WINUSB = True
-    except ImportError:
-        HAS_WINUSB = False
-        print("Warning: pywinusb not available, USB detection may be limited")
-    
-    try:
-        import usb.core
-        import usb.util
-        HAS_PYUSB = True
-    except ImportError:
-        HAS_PYUSB = False
-        print("Warning: pyusb not available, USB detection may be limited")
-else:
-    # Linux/Mac
-    try:
-        import usb.core
-        import usb.util
-        HAS_PYUSB = True
-    except ImportError:
-        HAS_PYUSB = False
-        print("Warning: pyusb not available, USB detection may be limited")
+# Windows USB 库（不再区分 Linux/Mac）
+try:
+    import pywinusb.hid as hid
+    HAS_WINUSB = True
+except ImportError:
     HAS_WINUSB = False
+    print("Warning: pywinusb not available, USB detection may be limited")
+
+try:
+    import usb.core
+    import usb.util
+    HAS_PYUSB = True
+except ImportError:
+    HAS_PYUSB = False
+    print("Warning: pyusb not available, USB detection may be limited")
 
 
 class USBService:
@@ -64,8 +52,8 @@ class USBService:
                 except Exception as e:
                     print(f"Warning: pyusb scan failed: {e}")
             
-            # 方法2: 使用 pywinusb（Windows HID 设备）
-            if HAS_WINUSB and platform.system() == "Windows":
+            # 方法2: 使用 pywinusb（Windows HID 设备，仅 Windows）
+            if HAS_WINUSB:
                 try:
                     winusb_devices = await self._scan_winusb()
                     for dev in winusb_devices:
@@ -76,7 +64,7 @@ class USBService:
                     print(f"Warning: pywinusb scan failed: {e}")
             
             # 方法3: 使用 WMI（Windows 备选方案）
-            if platform.system() == "Windows" and len(devices) == 0:
+            if len(devices) == 0:
                 try:
                     from services.usb_service_windows import scan_usb_devices_wmi
                     wmi_devices = await scan_usb_devices_wmi()
@@ -90,7 +78,7 @@ class USBService:
                     traceback.print_exc()
             
             # 方法4: 使用注册表（Windows 最后备选）
-            if platform.system() == "Windows" and len(devices) == 0:
+            if len(devices) == 0:
                 try:
                     from services.usb_service_windows import scan_usb_devices_registry
                     reg_devices = await scan_usb_devices_registry()
