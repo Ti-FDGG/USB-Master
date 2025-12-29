@@ -134,13 +134,19 @@ function App() {
 
         {/* Bottom Row: System Logs */}
         <div className={`lg:col-span-12 bg-slate-900 rounded-xl border border-slate-800 flex flex-col overflow-hidden shadow-inner transition-all duration-300 ${isLogExpanded ? 'h-64' : ''}`}>
-          <div className={`px-4 py-2 bg-slate-950 flex items-center justify-between ${isLogExpanded ? 'border-b border-slate-800' : ''}`}>
+          <div 
+            onClick={() => setIsLogExpanded(!isLogExpanded)}
+            className={`px-4 py-2 bg-slate-950 flex items-center justify-between cursor-pointer hover:bg-slate-900 transition-colors ${isLogExpanded ? 'border-b border-slate-800' : ''}`}
+          >
             <div className="flex items-center gap-2">
               <Terminal className="w-4 h-4 text-slate-500" />
               <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500">System Event Log</h3>
             </div>
             <button
-              onClick={() => setIsLogExpanded(!isLogExpanded)}
+              // onClick={(e) => {
+              //   e.stopPropagation();
+              //   setIsLogExpanded(!isLogExpanded);
+              // }}
               className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-slate-200"
               aria-label={isLogExpanded ? '收起日志' : '展开日志'}
             >
