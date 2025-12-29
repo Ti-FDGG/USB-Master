@@ -1,231 +1,195 @@
 """
-Windows USB 设备检测（使用 WMI）
-作为 pyusb 和 pywinusb 的备选方案（项目仅支持 Windows）
+Windows USB 设备检测（使用 Python WMI）
+当前项目仅支持 Windows，这里提供基于 python-wmi 的实现
 """
-import subprocess
-import json
 import re
 from typing import List, Optional
 import asyncio
-import os
+import wmi
+import pythoncom
 
 from models.schemas import USBDeviceInfo
 
 
 async def scan_usb_devices_wmi() -> List[USBDeviceInfo]:
-    """使用 WMI (Windows Management Instrumentation) 扫描 USB 设备"""
-    devices = []
-    
+    """
+    使用 python-wmi 直接访问 WMI，扫描 USB 设备。
+    - 解析 VID/PID
+    - 提取序列号
+    - 基础设备分类（storage/hid/hub/other）
+    - 总线号 / 地址目前为逻辑值（后续可结合更底层接口优化）
+    """
+    devices: List[USBDeviceInfo] = []
+
     try:
-        # 使用 PowerShell 查询 WMI，输出到临时文件避免编码问题
-        import tempfile
-        
-        ps_script = """
-        $OutputEncoding = [System.Text.Encoding]::UTF8
-        [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-        $output = @()
-        Get-WmiObject Win32_USBControllerDevice | ForEach-Object {
-            $device = [wmi]$_.Dependent
-            $output += [PSCustomObject]@{
-                DeviceID = $device.DeviceID
-                Description = $device.Description
-                Manufacturer = $device.Manufacturer
-                Name = $device.Name
-                PNPDeviceID = $device.PNPDeviceID
-                Service = $device.Service
-            }
-        }
-        Get-WmiObject Win32_USBHub | ForEach-Object {
-            $output += [PSCustomObject]@{
-                DeviceID = $_.DeviceID
-                Description = $_.Description
-                Manufacturer = $_.Manufacturer
-                Name = $_.Name
-                PNPDeviceID = $_.PNPDeviceID
-                Service = $_.Service
-            }
-        }
-        $output | ConvertTo-Json -Depth 3
-        """
-        
         loop = asyncio.get_event_loop()
-        
-        def run_powershell():
-            script_path = None
+
+        def query_wmi_devices():
+            """
+            在同步线程中查询 WMI，返回 Win32_PnPEntity 对象列表。
+            注意：由于该函数会在线程池中的新线程里执行，必须在该线程中
+            手动初始化 COM（pythoncom.CoInitialize），否则 python-wmi
+            会抛出 x_wmi_uninitialised_thread 异常。
+            """
+            pythoncom.CoInitialize()
             try:
-                # 使用 utf-8-sig 写入临时文件，确保 PowerShell 正确读取脚本内容
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.ps1', delete=False, encoding='utf-8-sig') as f:
-                    f.write(ps_script)
-                    script_path = f.name
+                conn = wmi.WMI(namespace="root\\cimv2")
+                all_pnp = conn.Win32_PnPEntity()
+                usb_pnp = []
 
-                # 执行命令
-                result = subprocess.run(
-                    ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script_path],
-                    capture_output=True,
-                    timeout=15,
-                    shell=False
-                )
-
-                # 2. 优先使用 utf-8-sig 解码，它能自动处理 UTF-8 的 BOM 标记
-                def decode_output(raw_bytes):
-                    for enc in ['utf-8-sig', 'gbk', 'utf-8']:
-                        try:
-                            return raw_bytes.decode(enc)
-                        except UnicodeDecodeError:
-                            continue
-                    return raw_bytes.decode('utf-8', errors='replace')
-
-                stdout = decode_output(result.stdout)
-                stderr = decode_output(result.stderr)
-
-                class Result:
-                    def __init__(self, returncode, stdout, stderr):
-                        self.returncode = returncode
-                        self.stdout = stdout
-                        self.stderr = stderr
-
-                return Result(result.returncode, stdout, stderr)
-
-            except Exception as e:
-                class ErrorResult:
-                    def __init__(self, err):
-                        self.returncode = 1
-                        self.stdout = ""
-                        self.stderr = str(err)
-                return ErrorResult(e)
-            finally:
-                if script_path and os.path.exists(script_path):
-                    os.unlink(script_path)
-
-        result = await loop.run_in_executor(None, run_powershell)
-
-        # TODO: 测试用代码，未来记得删除
-        # # 将 result 的内容输出到一个文本文档当中
-        # try:
-        #     with open("usb_wmi_result.txt", "w", encoding="utf-8") as f:
-        #         f.write(f"Return code: {result.returncode}\n")
-        #         f.write("STDOUT:\n")
-        #         f.write(result.stdout if isinstance(result.stdout, str) else str(result.stdout))
-        #         f.write("\nSTDERR:\n")
-        #         f.write(result.stderr if isinstance(result.stderr, str) else str(result.stderr))
-        # except Exception as e:
-        #     print(f"Failed to write result to usb_wmi_result.txt: {e}")
-        
-        if result.returncode == 0 and result.stdout:
-            try:
-                output = result.stdout.strip()
-                # 清理输出
-                if output.startswith('['):
-                    device_list = json.loads(output)
-                elif output.startswith('{'):
-                    device_list = [json.loads(output)]
-                else:
-                    # 处理多行 JSON
-                    device_list = []
-                    for line in output.split('\n'):
-                        line = line.strip()
-                        if line and (line.startswith('{') or line.startswith('[')):
-                            try:
-                                if line.startswith('['):
-                                    device_list.extend(json.loads(line))
-                                else:
-                                    device_list.append(json.loads(line))
-                            except:
-                                pass
-                
-                for device_data in device_list:
+                for dev in all_pnp:
                     try:
-                        device_info = _parse_wmi_device(device_data)
-                        if device_info:
-                            devices.append(device_info)
-                    except Exception as e:
-                        print(f"Warning: Could not parse WMI device: {e}")
+                        pnp_id = getattr(dev, "PNPDeviceID", "") or ""
+                        if not pnp_id:
+                            continue
+
+                        upper_id = pnp_id.upper()
+                        # 仅保留 USB / USB 存储 相关的 PnP 实体
+                        if upper_id.startswith("USB\\") or upper_id.startswith("USBSTOR\\"):
+                            usb_pnp.append(dev)
+                    except Exception:
                         continue
-            except json.JSONDecodeError as e:
-                print(f"Warning: Could not parse WMI JSON output: {e}")
-                print(f"Output preview: {result.stdout[:500]}")
+
+                return usb_pnp
+            finally:
+                # 确保线程退出前释放 COM
+                pythoncom.CoUninitialize()
+
+        raw_devices = await loop.run_in_executor(None, query_wmi_devices)
+
+        for dev in raw_devices:
+            try:
+                info = _parse_wmi_pnp_entity(dev)
+                if info:
+                    devices.append(info)
+            except Exception as e:
+                print(f"Warning: Could not parse WMI USB device: {e}")
+                continue
     except Exception as e:
-        print(f"Error scanning USB devices with WMI: {e}")
+        print(f"Error scanning USB devices with python-wmi: {e}")
         import traceback
         traceback.print_exc()
-    
+
     return devices
 
 
-def _parse_wmi_device(device_data: dict) -> Optional[USBDeviceInfo]:
-    """解析 WMI 设备数据"""
+def _parse_wmi_pnp_entity(dev) -> Optional[USBDeviceInfo]:
+    """
+    从 Win32_PnPEntity 对象解析 USBDeviceInfo
+    尽量满足实验要求中的字段：
+    - 制造商、产品名
+    - VID/PID
+    - 序列号（从 PNPDeviceID 中解析）
+    - 基础设备分类（storage/hid/hub/other）
+    - 传输速率/USB 版本：基于名称/描述的简单推断，不再一刀切
+    """
     try:
-        pnp_id = str(device_data.get('PNPDeviceID', '') or '')
-        device_id = str(device_data.get('DeviceID', '') or '')
-        
-        # 从 PNPDeviceID 提取 Vendor ID 和 Product ID
+        pnp_id = str(getattr(dev, "PNPDeviceID", "") or "")
+        if not pnp_id:
+            return None
+
+        device_id_raw = str(getattr(dev, "DeviceID", "") or "")
+        service = str(getattr(dev, "Service", "") or "")
+        manufacturer = str(getattr(dev, "Manufacturer", "") or "") or "Unknown"
+        name = str(getattr(dev, "Name", "") or "")
+        description = str(getattr(dev, "Description", "") or "")
+
+        # 1. 提取 VID / PID
         vendor_id = "0x0000"
         product_id = "0x0000"
-        
-        vid_match = re.search(r'VID_([0-9A-F]{4})', pnp_id, re.IGNORECASE)
-        pid_match = re.search(r'PID_([0-9A-F]{4})', pnp_id, re.IGNORECASE)
-        
-        if not vid_match:
-            vid_match = re.search(r'VID_([0-9A-F]{4})', device_id, re.IGNORECASE)
-        if not pid_match:
-            pid_match = re.search(r'PID_([0-9A-F]{4})', device_id, re.IGNORECASE)
-        
+
+        vid_match = re.search(r"VID_([0-9A-F]{4})", pnp_id, re.IGNORECASE)
+        pid_match = re.search(r"PID_([0-9A-F]{4})", pnp_id, re.IGNORECASE)
+
+        if not vid_match and device_id_raw:
+            vid_match = re.search(r"VID_([0-9A-F]{4})", device_id_raw, re.IGNORECASE)
+        if not pid_match and device_id_raw:
+            pid_match = re.search(r"PID_([0-9A-F]{4})", device_id_raw, re.IGNORECASE)
+
         if vid_match:
             vendor_id = f"0x{vid_match.group(1).upper()}"
         if pid_match:
             product_id = f"0x{pid_match.group(1).upper()}"
-        
-        # 如果仍然没有 VID/PID，检查是否是 USB Hub/Controller
+
+        # 多数非 USB 设备不会包含 VID/PID，这里做一层过滤
         if vendor_id == "0x0000" and product_id == "0x0000":
-            service = str(device_data.get('Service', '') or '').lower()
-            if 'usbhub' not in service and 'usbcontroller' not in service:
-                # 不是 USB Hub 或控制器，且没有 VID/PID，跳过
-                return None
-        
-        # 提取总线号和地址
+            return None
+
+        # 2. 解析产品名称
+        product = description or name or "Unknown Device"
+
+        # 3. 从 PNPDeviceID 中解析序列号
+        serial_number = "N/A"
+        try:
+            # 典型格式: USB\VID_XXXX&PID_YYYY\SERIAL[&接口编号]
+            parts = pnp_id.split("\\")
+            if len(parts) >= 3:
+                tail = parts[-1]
+                # 去掉末尾类似 &0 / &1 / &MI_01 等接口标记，只保留序列本体
+                serial_candidate = tail.split("&")[0]
+                serial_candidate = serial_candidate.strip()
+                if serial_candidate and serial_candidate.upper() not in {"USB", "ROOT_HUB"}:
+                    serial_number = serial_candidate
+        except Exception:
+            pass
+
+        # 4. 基础设备分类
+        upper_id = pnp_id.upper()
+        upper_service = service.upper()
+        upper_name = name.upper()
+
+        device_type = "other"
+        if upper_id.startswith("USBSTOR\\"):
+            device_type = "storage"
+        elif "HID" in upper_service or "HID" in upper_id or "HID" in upper_name:
+            device_type = "hid"
+        elif "HUB" in upper_name or "USBHUB" in upper_service:
+            device_type = "hub"
+
+        # 5. 总线号 / 地址
+        # 目前从 PNP ID 很难精确反推出物理总线和地址，这里先给出逻辑默认值 0
+        # 后续可以通过关联 Win32_USBController / 低层接口做进一步优化
         bus_number = 0
         address = 0
-        
-        bus_match = re.search(r'BUS_(\d+)', device_id, re.IGNORECASE)
-        addr_match = re.search(r'ADDR_(\d+)', device_id, re.IGNORECASE)
-        
-        if bus_match:
-            bus_number = int(bus_match.group(1))
-        if addr_match:
-            address = int(addr_match.group(1))
-        
-        # 处理字符串，清理编码问题
-        manufacturer = str(device_data.get('Manufacturer', '') or 'Unknown')
-        description = str(device_data.get('Description', '') or '')
-        name = str(device_data.get('Name', '') or '')
-        
-        product = description or name or "Unknown Device"
-        
-        # 清理可能的乱码
-        manufacturer = manufacturer.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
-        product = product.encode('utf-8', errors='ignore').decode('utf-8', errors='ignore')
-        
-        # 生成唯一设备 ID
+
+        # 6. 传输速率 / USB 版本（基于名称/描述的简单推断）
+        upper_desc = product.upper()
+        speed = "Unknown"
+        usb_version = "Unknown"
+
+        if "USB 3" in upper_desc or "USB3" in upper_desc or "USB 3." in upper_desc:
+            speed = "USB 3.0"
+            usb_version = "3.0"
+        elif "USB 2" in upper_desc or "USB2" in upper_desc:
+            speed = "USB 2.0"
+            usb_version = "2.0"
+        else:
+            # 无明显标记时，保留 Unknown，避免误导
+            speed = "Unknown"
+            usb_version = "Unknown"
+
+        # 7. 生成稳定的内部设备 ID（基于 PNPDeviceID）
         import hashlib
-        unique_str = f"{pnp_id}_{device_id}"
-        hash_id = hashlib.md5(unique_str.encode()).hexdigest()[:8]
+
+        unique_str = pnp_id or device_id_raw
+        hash_id = hashlib.md5(unique_str.encode("utf-8", errors="ignore")).hexdigest()[:8]
         device_id_str = f"wmi_{vendor_id}_{product_id}_{hash_id}"
-        
+
         return USBDeviceInfo(
             device_id=device_id_str,
             vendor_id=vendor_id,
             product_id=product_id,
-            manufacturer=manufacturer or "Unknown",
-            product=product or "Unknown",
-            serial_number="N/A",
+            manufacturer=manufacturer,
+            product=product,
+            serial_number=serial_number,
             bus_number=bus_number,
             address=address,
-            speed="USB 2.0",
-            usb_version="2.0"
+            speed=speed,
+            usb_version=usb_version,
+            device_type=device_type,
         )
     except Exception as e:
-        print(f"Error parsing WMI device: {e}")
+        print(f"Error parsing WMI PnP entity: {e}")
         return None
 
 

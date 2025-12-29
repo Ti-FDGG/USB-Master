@@ -18,6 +18,9 @@ class USBDeviceInfo(BaseModel):
     address: int
     speed: str  # "USB 1.1", "USB 2.0", "USB 3.0"
     usb_version: str
+    # 设备类型（基础分类，用于后续详细信息展示）
+    # 例如: "storage", "hid", "hub", "controller", "other"
+    device_type: str = "other"
     
     class Config:
         json_schema_extra = {
