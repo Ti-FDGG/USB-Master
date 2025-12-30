@@ -37,17 +37,6 @@ class USBService:
                 import traceback
                 traceback.print_exc()
 
-            # 如果 WMI 扫描失败或结果为空，可选地使用注册表作为最后备选
-            if len(devices) == 0:
-                try:
-                    from services.usb_service_windows import scan_usb_devices_registry
-                    reg_devices = await scan_usb_devices_registry()
-                    for dev in reg_devices:
-                        if dev.device_id not in device_ids_seen:
-                            devices.append(dev)
-                            device_ids_seen.add(dev.device_id)
-                except Exception as e:
-                    print(f"Warning: Registry scan failed: {e}")
         except Exception as e:
             print(f"Error in scan_devices: {e}")
             import traceback

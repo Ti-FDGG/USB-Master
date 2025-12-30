@@ -153,20 +153,8 @@ def _parse_wmi_pnp_entity(dev) -> Optional[USBDeviceInfo]:
         address = 0
 
         # 6. 传输速率 / USB 版本（基于名称/描述的简单推断）
-        upper_desc = product.upper()
         speed = "Unknown"
         usb_version = "Unknown"
-
-        if "USB 3" in upper_desc or "USB3" in upper_desc or "USB 3." in upper_desc:
-            speed = "USB 3.0"
-            usb_version = "3.0"
-        elif "USB 2" in upper_desc or "USB2" in upper_desc:
-            speed = "USB 2.0"
-            usb_version = "2.0"
-        else:
-            # 无明显标记时，保留 Unknown，避免误导
-            speed = "Unknown"
-            usb_version = "Unknown"
 
         # 7. 生成稳定的内部设备 ID（基于 PNPDeviceID）
         import hashlib
@@ -191,10 +179,3 @@ def _parse_wmi_pnp_entity(dev) -> Optional[USBDeviceInfo]:
     except Exception as e:
         print(f"Error parsing WMI PnP entity: {e}")
         return None
-
-
-# 保留注册表方法作为备选（暂时不使用）
-async def scan_usb_devices_registry() -> List[USBDeviceInfo]:
-    """使用 Windows 注册表扫描 USB 设备（备选方案）"""
-    # 暂时禁用，优先使用 WMI
-    return []
