@@ -1,42 +1,53 @@
 """
 Pydantic 数据模型
 """
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from datetime import datetime
 
 
 class USBDeviceInfo(BaseModel):
-    """USB 设备信息"""
-    device_id: str
-    vendor_id: str
-    product_id: str
+    """
+    USB 设备信息（与 C++ 版 USBDeviceInfo 结构体完全一致）
+
+    对应 C++ 定义：
+        struct USBDeviceInfo {
+            std::string devicePath;
+            std::string serialNumber;
+            std::string deviceGUID;
+            std::string description;
+            std::string manufacturer;
+            std::string product;
+            std::string deviceClass;
+            std::string deviceInstanceId;
+            std::string vendorId;
+            std::string productId;
+            std::string busNumber;
+            std::string portNumber;
+            std::string speed;
+            std::string version;
+        };
+    """
+
+    # 字段命名与 C++ 结构体保持完全一致
+    devicePath: str
+    serialNumber: str
+    deviceGUID: str
+
+    description: str
     manufacturer: str
     product: str
-    serial_number: str
-    bus_number: int
-    address: int
-    speed: str  # "USB 1.1", "USB 2.0", "USB 3.0"
-    usb_version: str
-    # 设备类型（基础分类，用于后续详细信息展示）
-    # 例如: "storage", "hid", "hub", "controller", "other"
-    device_type: str = "other"
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "device_id": "001:002",
-                "vendor_id": "0x1234",
-                "product_id": "0x5678",
-                "manufacturer": "SanDisk",
-                "product": "USB Flash Drive",
-                "serial_number": "1234567890",
-                "bus_number": 1,
-                "address": 2,
-                "speed": "USB 3.0",
-                "usb_version": "3.0"
-            }
-        }
+    deviceClass: str
+    deviceInstanceId: str
+    vendorId: str
+    productId: str
+
+    busNumber: str
+    portNumber: str
+    speed: str
+    version: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class FileEntry(BaseModel):

@@ -4,17 +4,26 @@ import { UsbDeviceLog } from '../types';
 import api, { WebSocketClient } from '../utils/api';
 
 interface USBDeviceInfo {
-  device_id: string;
-  vendor_id: string;
-  product_id: string;
+  devicePath: string;
+  serialNumber: string;
+  deviceGUID: string;
+
+  description: string;
   manufacturer: string;
   product: string;
-  serial_number: string;
-  bus_number: number;
-  address: number;
+  deviceClass: string;
+  deviceInstanceId: string;
+  vendorId: string;
+  productId: string;
+
+  busNumber: string;
+  portNumber: string;
   speed: string;
-  usb_version: string;
+  version: string;
 }
+
+const getDeviceKey = (device: USBDeviceInfo) =>
+  `${device.vendorId}-${device.productId}-${device.serialNumber}-${device.busNumber}-${device.portNumber}-${device.devicePath}`;
 
 interface UsbMonitorProps {
   addLog: (type: UsbDeviceLog['type'], message: string) => void;
@@ -78,8 +87,8 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
         wsClient.on('device_connected', (data: any) => {
           if (data.devices) {
             const deviceList = data.devices as USBDeviceInfo[];
-            const newDevices = deviceList.filter((d: USBDeviceInfo) => 
-              !previousDevices.some(existing => existing.device_id === d.device_id)
+            const newDevices = deviceList.filter((d: USBDeviceInfo) =>
+              !previousDevices.some(existing => getDeviceKey(existing) === getDeviceKey(d))
             );
             if (newDevices.length > 0) {
               newDevices.forEach((device: USBDeviceInfo) => {
@@ -95,8 +104,8 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
         wsClient.on('device_disconnected', (data: any) => {
           if (data.devices) {
             const deviceList = data.devices as USBDeviceInfo[];
-            const oldDevices = previousDevices.filter(d => 
-              !deviceList.some((newD: USBDeviceInfo) => newD.device_id === d.device_id)
+            const oldDevices = previousDevices.filter(d =>
+              !deviceList.some((newD: USBDeviceInfo) => getDeviceKey(newD) === getDeviceKey(d))
             );
             if (oldDevices.length > 0) {
               oldDevices.forEach(device => {
@@ -179,7 +188,7 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
         )}
 
         {devices.map((device) => (
-          <div key={device.device_id} className="bg-slate-700/50 rounded-lg p-3 border border-slate-600 hover:border-blue-500/50 transition-colors group">
+          <div key={getDeviceKey(device)} className="bg-slate-700/50 rounded-lg p-3 border border-slate-600 hover:border-blue-500/50 transition-colors group">
             <div className="flex justify-between items-start mb-2">
               <div>
                 <h3 className="font-semibold text-slate-200">{device.product || 'Unknown Device'}</h3>
@@ -194,15 +203,15 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
             <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mt-3">
               <div className="bg-slate-800 p-1.5 rounded">
                 <span className="block text-slate-500 text-[10px] uppercase">Vendor ID</span>
-                <span className="font-mono text-slate-300">{device.vendor_id || 'N/A'}</span>
+                <span className="font-mono text-slate-300">{device.vendorId || 'N/A'}</span>
               </div>
               <div className="bg-slate-800 p-1.5 rounded">
                 <span className="block text-slate-500 text-[10px] uppercase">Product ID</span>
-                <span className="font-mono text-slate-300">{device.product_id || 'N/A'}</span>
+                <span className="font-mono text-slate-300">{device.productId || 'N/A'}</span>
               </div>
               <div className="bg-slate-800 p-1.5 rounded">
                 <span className="block text-slate-500 text-[10px] uppercase">Bus Number</span>
-                <span className="font-mono text-slate-300">{device.bus_number}</span>
+                <span className="font-mono text-slate-300">{device.busNumber}</span>
               </div>
               <div className="bg-slate-800 p-1.5 rounded">
                 <span className="block text-slate-500 text-[10px] uppercase">Speed</span>
@@ -210,11 +219,11 @@ const UsbMonitor: React.FC<UsbMonitorProps> = ({ addLog }) => {
               </div>
               <div className="bg-slate-800 p-1.5 rounded">
                 <span className="block text-slate-500 text-[10px] uppercase">USB Version</span>
-                <span className="font-mono text-slate-300">{device.usb_version || 'N/A'}</span>
+                <span className="font-mono text-slate-300">{device.version || 'N/A'}</span>
               </div>
               <div className="bg-slate-800 p-1.5 rounded">
                 <span className="block text-slate-500 text-[10px] uppercase">Serial</span>
-                <span className="font-mono text-slate-300 truncate" title={device.serial_number}>{device.serial_number || 'N/A'}</span>
+                <span className="font-mono text-slate-300 truncate" title={device.serialNumber}>{device.serialNumber || 'N/A'}</span>
               </div>
             </div>
           </div>
