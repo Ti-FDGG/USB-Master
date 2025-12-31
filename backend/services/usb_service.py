@@ -1,7 +1,7 @@
 """
 USB 设备服务（仅支持 Windows）
 
-阶段三：使用 C++ usb_scanner 实现替换原有 Python WMI 扫描逻辑。
+使用 C++ usb_scanner 实现 USB 设备扫描。
 """
 from typing import List, Optional
 import asyncio
