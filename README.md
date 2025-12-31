@@ -4,6 +4,8 @@
 
 USB 总线及挂载设备测试实验系统 - 一个基于 C++ Setup API + FastAPI + React 的 USB 设备扫描与监控平台。
 
+![](./example.png)
+
 ## 项目简介
 
 USB Master 是一个用于扫描、监控和管理 USB 设备的 Web 应用系统。系统采用前后端分离架构，后端使用 Python FastAPI 和 C++ 绑定实现高性能的 USB 设备扫描，前端使用 React + TypeScript 提供现代化的用户界面。
