@@ -186,7 +186,7 @@ function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-600">
-        <p>USB Master &copy; 2024. Python Backend API with React Frontend.</p>
+        <p>USB Master &copy; 2025. Python Backend API with React Frontend.</p>
       </footer>
     </div>
   );
