@@ -1,68 +1,66 @@
 @echo off
-REM Windows构建脚本
+setlocal enabledelayedexpansion
 
-REM 如果传入 clean 参数，则执行清理并退出
-if /I "%1"=="clean" goto clean
+REM --- 配置区域 ---
+REM 假设 venv 文件夹在 cpp_bindings 的上一级目录
+set "MODULE_DIR=%CD%"
+set "PYTHON_EXE=%MODULE_DIR%\..\venv\Scripts\python.exe"
+set "BUILD_DIR=build"
+set "SRC_DIR=src"
+set "OUTPUT_DIR=%MODULE_DIR%"
 
-echo Creating build directory...
-if not exist build mkdir build
-cd build
-
-echo Configuring CMake...
-cmake .. -DCMAKE_BUILD_TYPE=Release
-
-if %ERRORLEVEL% NEQ 0 (
-    echo CMake configuration failed!
+REM 检查 Python 路径是否存在
+if not exist "%PYTHON_EXE%" (
+    echo [ERROR] Could not find venv Python at: %PYTHON_EXE%
     pause
     exit /b 1
 )
 
-echo Building...
+REM 清理指令
+if /I "%1"=="clean" (
+    echo Cleaning...
+    if exist %BUILD_DIR% rd /s /q %BUILD_DIR%
+    if exist "%OUTPUT_DIR%\usb_scanner.pyd" del /q "%OUTPUT_DIR%\usb_scanner.pyd"
+    echo Clean done.
+    goto end
+)
+
+echo [1/3] Using Python: %PYTHON_EXE%
+
+REM 创建并进入构建目录
+if not exist %BUILD_DIR% mkdir %BUILD_DIR%
+cd %BUILD_DIR%
+
+echo [2/3] Configuring CMake...
+cmake ..\%SRC_DIR% -G "Visual Studio 17 2022" -A x64 ^
+    -DPython_EXECUTABLE="%PYTHON_EXE%" ^
+    -DCMAKE_BUILD_TYPE=Release
+
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERROR] CMake configuration failed!
+    pause
+    exit /b 1
+)
+
+echo [3/3] Building Release version...
 cmake --build . --config Release
 
 if %ERRORLEVEL% NEQ 0 (
-    echo Build failed!
+    echo [ERROR] Build failed!
     pause
     exit /b 1
 )
 
-REM 返回到 cpp_bindings 目录
+REM 复制生成的 pyd 到模块目录（cpp_bindings）
+if exist "Release\usb_scanner.pyd" (
+    copy /Y "Release\usb_scanner.pyd" "..\usb_scanner.pyd"
+    echo.
+    echo [SUCCESS] Module copied to: %OUTPUT_DIR%\usb_scanner.pyd
+) else (
+    echo [ERROR] .pyd file not found in Release folder.
+)
+
 cd ..
 
-REM 将生成的 pyd 文件复制到 backend 目录
-set "PYD_SRC=..\Release\usb_scanner.pyd"
-set "PYD_DST=..\usb_scanner.pyd"
-
-if exist "%PYD_SRC%" (
-    copy /Y "%PYD_SRC%" "%PYD_DST%"
-    echo Copied usb_scanner.pyd to backend directory: %PYD_DST%
-) else (
-    echo Warning: %PYD_SRC% not found, usb_scanner.pyd was not copied.
-)
-
-echo Build completed successfully!
-pause
-goto end
-
-:clean
-echo Cleaning build artifacts...
-
-REM 删除 CMake 构建目录
-if exist build (
-    rd /s /q build
-)
-
-REM 删除 backend\Release 下的 pyd
-if exist "..\Release\usb_scanner.pyd" (
-    del /q "..\Release\usb_scanner.pyd"
-)
-
-REM 删除 backend 目录下的 pyd
-if exist "..\usb_scanner.pyd" (
-    del /q "..\usb_scanner.pyd"
-)
-
-echo Clean completed.
-pause
-
 :end
+pause
