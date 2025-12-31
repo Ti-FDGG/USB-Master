@@ -19,7 +19,7 @@ USB Master 是一个用于扫描、监控和管理 USB 设备的 Web 应用系�
 
 ### 后端
 - **框架**：FastAPI 0.104.1
-- **语言**：Python 3.8+
+- **语言**：Python 3.11
 - **USB 扫描**：C++ (USBScanner.cpp) + pybind11 绑定
 - **异步服务器**：Uvicorn
 - **数据验证**：Pydantic 2.5.0
