@@ -121,19 +121,19 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 grid-rows-[1fr_auto] gap-6 max-w-[1600px] mx-auto w-full overflow-hidden min-h-0">
+      <main className="flex-1 p-6 grid grid-cols-1 lg:grid-cols-12 grid-rows-[1fr_auto] gap-6 max-w-[1600px] mx-auto w-full overflow-y-auto min-h-0">
         {/* Left Column: USB Bus Monitor */}
-        <div className="lg:col-span-4 h-[600px] lg:h-full flex flex-col min-h-0">
+        <div className="lg:col-span-4 min-h-[600px] lg:h-full lg:min-h-0 flex flex-col">
           <UsbMonitor addLog={addLog} />
         </div>
 
         {/* Right Column: File Manager */}
-        <div className="lg:col-span-8 h-[600px] lg:h-full flex flex-col min-h-0">
+        <div className="lg:col-span-8 min-h-[600px] lg:h-full lg:min-h-0 flex flex-col">
           <FileManager addLog={addLog} />
         </div>
 
         {/* Bottom Row: System Logs */}
-        <div className={`lg:col-span-12 bg-slate-900 rounded-xl border border-slate-800 flex flex-col overflow-hidden shadow-inner transition-all duration-300 ${isLogExpanded ? 'h-64' : ''}`}>
+        <div className={`lg:col-span-12 bg-slate-900 rounded-xl border border-slate-800 flex flex-col overflow-hidden shadow-inner transition-all duration-300 ${isLogExpanded ? 'h-64' : 'min-h-[48px]'}`}>
           <div 
             onClick={() => setIsLogExpanded(!isLogExpanded)}
             className={`px-4 py-2 bg-slate-950 flex items-center justify-between cursor-pointer hover:bg-slate-900 transition-colors ${isLogExpanded ? 'border-b border-slate-800' : ''}`}
